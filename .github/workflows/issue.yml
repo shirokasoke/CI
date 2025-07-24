@@ -18,7 +18,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        issues=$(gh api "/repos/Rcrwrate/CI/issues?filter=all&state=open") 
+        issues=$(gh api "/repos/shirokasoke/CI/issues?filter=all&state=open") 
         echo "issues=$issues" >> $GITHUB_OUTPUT
       id: get-issues
 
