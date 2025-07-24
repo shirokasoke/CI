@@ -78,7 +78,7 @@ jobs:
     - name: Download favorite Tag
       if: inputs.mode == '下载特定收藏tag'
       run: |
-        python aria.py -uid ${{ secrets.UID }} -c ${{ secrets.COOKIE }} --tag ${{ inputs.tag }} --type rclone
+        python aria.py -uid ${{ secrets.UID }} -c ${{ secrets.COOKIE }} --tag ${{ inputs.tag }}
         cd image
         aria2c -c --input-file=urllist.txt
         rm -rf urllist.txt
