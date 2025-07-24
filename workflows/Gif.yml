@@ -1,0 +1,77 @@
+﻿name: Pixiv Gif
+on:
+  workflow_call:
+    inputs:
+      upload-path:
+        required: true
+        type: string
+      artifact-path:
+        required: true
+        type: string
+      push:
+        required: false
+        type: boolean
+        default: true
+
+
+jobs:
+  Pixiv-GIF:
+    runs-on: windows-latest
+    steps:
+      - name: checkout main
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          fetch-depth: full
+
+      - name: Install
+        run: |
+          pip install requests
+          pip install pycryptodome
+          python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiemi --type rclone
+          choco install ffmpeg -y
+          choco install rclone -y 
+
+
+      # - name: Refreshenv
+      #   continue-on-error: true
+      #   run: refreshenv
+
+      - name: Refreshenv
+        continue-on-error: true
+        run: |
+          Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+          refreshenv
+      
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-path }}
+          path: image
+
+      - name: Create Gif and Apng
+        continue-on-error: true
+        run: |
+          python gif.py --mode run
+          bash gif.sh
+      
+      - name: Upload
+        if: startsWith( inputs.upload-path, 'Upload' )
+        run: |
+          rclone --checksum --config=rclone.conf copyto local:image "Save:${{ inputs.upload-path }}" --log-level INFO
+  
+      - name: Clean
+        run: |
+          python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiami --type rclone
+  
+      - name: Push
+        if: inputs.push == true
+        run: |
+          git init
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add rclone.conf
+          git commit -m "Daily update ${{ github.run_id }}"
+          # git checkout -- Upload/oa.json
+          git filter-branch --force --index-filter 'if [ $GIT_COMMIT != $(git rev-parse HEAD) ]; then git rm --cached --ignore-unmatch rclone.conf; fi' --prune-empty --tag-name-filter cat -- --all
+          git push origin --force --all

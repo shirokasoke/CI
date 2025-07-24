@@ -1,0 +1,108 @@
+name: BT
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '下载模式'
+        required: true
+        default: 'magnet链接'
+        type: choice
+        options:
+        - magnet链接
+        - 种子链接
+      torrent:
+        description: 'torrent'
+        required: false
+        type: string
+      Upload:
+        description: '上传路径'
+        required: true
+        type: string
+        default: Upload/Pixiv/image
+      Upload_mode:
+        description: '上传模式'
+        required: true
+        default: 'rclone'
+        type: choice
+        options:
+        - rclone
+        - python
+      ZIP:
+        description: '是否解压'
+        required: true
+        default: true
+        type: boolean
+    
+jobs:
+  main-to-gh-pages:
+    runs-on: ubuntu-latest
+        
+    steps:                          
+    - name: checkout main
+      uses: actions/checkout@v2
+      with:
+        ref: main
+        fetch-depth: full
+               
+    - name: Prepare
+      run: |
+        sudo apt update
+        sudo apt install -y -qq aria2
+        sudo apt install -y p7zip p7zip-full p7zip-rar unrar
+        pip install pycryptodome
+    
+    - name: Download by magnet
+      if: inputs.mode == 'magnet链接'
+      run: |
+        echo "${{ inputs.torrent }}" > aria2.session
+        bash tracker.sh
+        aria2c --conf-path=aria2.conf
+        
+    - name: Download by url
+      if: inputs.mode == '种子链接'
+      run: |
+        wget "${{ inputs.torrent }}"
+        echo $(basename "${{ inputs.torrent }}") > aria2.session
+        bash tracker.sh
+        aria2c --conf-path=aria2.conf
+    
+    - name: unzip
+      if: inputs.ZIP == true
+      continue-on-error: true
+      run: |
+        bash unzip.sh
+
+    - name: Upload by python
+      if: inputs.Upload_mode == 'python'
+      run: |
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiemi --type python
+        cd Upload
+        python run.py -p ${{ inputs.Upload }}
+        cd ../
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiami --type python
+
+    - name: Upload by rclone
+      if: inputs.Upload_mode == 'rclone'
+      run: |
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiemi --type rclone
+        sudo -v ; curl https://rclone.org/install.sh | sudo bash
+        bash rclone.sh -p ${{ inputs.Upload }}
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiami --type rclone
+
+    - name: Clean
+      run: |
+        rm -rf image
+
+    - name: Push
+      run: |
+        git init
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        git checkout -- Upload/oa.json
+        git add .
+        git commit -m "BT update ${{ github.run_id }}"
+        git filter-branch --force --index-filter 'if [ "$GIT_COMMIT" != "$(git rev-parse HEAD)" ]; then git rm --cached --ignore-unmatch Upload/setting.py; fi' --prune-empty --tag-name-filter cat -- --all
+        git filter-branch --force --index-filter 'if [ "$GIT_COMMIT" != "$(git rev-parse HEAD)" ]; then git rm --cached --ignore-unmatch rclone.conf; fi' --prune-empty --tag-name-filter cat -- --all
+        git filter-branch --force --index-filter 'if [ "$GIT_COMMIT" != "$(git rev-parse HEAD)" ]; then git rm --cached --ignore-unmatch dht.dat; fi' --prune-empty --tag-name-filter cat -- --all
+        git filter-branch --force --index-filter 'if [ "$GIT_COMMIT" != "$(git rev-parse HEAD)" ]; then git rm --cached --ignore-unmatch aria2.conf; fi' --prune-empty --tag-name-filter cat -- --all
+        git push origin --force --all

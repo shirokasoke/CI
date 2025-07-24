@@ -1,0 +1,147 @@
+name: Pixiv Input
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: '模式'
+        required: true
+        default: '下载特定收藏tag'
+        type: string
+      tag:
+        description: '分类tag'
+        required: false
+        type: string
+        default: 未分類
+      uid:
+        description: 'UID'
+        required: false
+        type: string
+      Upload:
+        description: '上传路径'
+        required: true
+        type: string
+        default: Upload/Pixiv/image
+      push:
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '模式'
+        required: true
+        default: '下载特定收藏tag'
+        type: choice
+        options:
+        - 下载特定收藏tag
+        - 下载特定UID的作品
+      tag:
+        description: '分类tag'
+        required: false
+        type: string
+        default: 未分類
+      uid:
+        description: 'UID'
+        required: false
+        type: number
+      Upload:
+        description: '上传路径'
+        required: true
+        type: string
+        default: Upload/Pixiv/image
+      push:
+        description: '是否更新凭证'
+        required: false
+        type: boolean
+        default: true
+    
+jobs:
+  Pixiv-Main:
+    runs-on: ubuntu-latest
+    outputs:
+      gif-check: ${{ steps.gif-check.outputs.GIF_CONTROL }}
+        
+    steps:                          
+    - name: checkout main
+      uses: actions/checkout@v2
+      with:
+        ref: main
+        fetch-depth: full
+               
+    - name: Prepare
+      run: |
+        pip install pycryptodome
+        sudo apt update
+        sudo apt install -y -qq aria2
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiemi --type rclone
+        
+    - name: Download favorite Tag
+      if: inputs.mode == '下载特定收藏tag'
+      run: |
+        python aria.py -uid ${{ secrets.UID }} -c ${{ secrets.COOKIE }} --tag ${{ inputs.tag }} --type rclone
+        cd image
+        aria2c -c --input-file=urllist.txt
+        rm -rf urllist.txt
+    
+    - name: Download UID Artworks
+      if: inputs.mode == '下载特定UID的作品'
+      run: |
+        python aria.py -uid ${{ inputs.UID }} -c ${{ secrets.COOKIE }} -m subscribe
+        cd image
+        aria2c -c --input-file=urllist.txt
+        rm -rf urllist.txt
+
+    - name: Gif find
+      run: |
+        python gif.py -c ${{ secrets.COOKIE }}
+        eval $(cat GIF_CONTROL)
+        echo "GIF_CONTROL=$GIF_CONTROL" >> $GITHUB_OUTPUT
+      id: gif-check
+
+    - name: GifZIP donwload
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'true' }}
+      run: |
+        cd image
+        aria2c -c --input-file=gifs.txt
+        rm -rf gifs.txt
+        
+    - name: Upload tmp Imgae
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.mode == '下载特定收藏tag' && inputs.tag || inputs.UID }}
+        path: image
+        retention-days: 1
+
+    - name: Upload
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'false' }}
+      run: |
+        sudo -v ; curl https://rclone.org/install.sh | sudo bash
+        bash rclone.sh -p ${{ inputs.Upload }}
+
+    - name: Clean
+      run: |
+        rm -rf image
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiami --type rclone
+
+    - name: Push
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'false' && inputs.push == true }}
+      run: |
+        git init
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        git add rclone.conf
+        git commit -m "Input update ${{ github.run_id }}"
+        # git checkout -- Upload/oa.json
+        git filter-branch --force --index-filter 'if [ "$GIT_COMMIT" != "$(git rev-parse HEAD)" ]; then git rm --cached --ignore-unmatch rclone.conf; fi' --prune-empty --tag-name-filter cat -- --all
+        git push origin --force --all
+  
+  Pixiv-GIF:
+    needs: Pixiv-Main
+    if:  ${{ needs.Pixiv-Main.outputs.gif-check == 'true' }}
+    uses: ./.github/workflows/Gif.yml
+    with:
+      upload-path: ${{ inputs.Upload }}
+      artifact-path: ${{ inputs.mode == '下载特定收藏tag' && inputs.tag || inputs.UID }}
+      push: ${{ inputs.push }}
+    secrets: inherit

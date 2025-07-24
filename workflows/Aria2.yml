@@ -1,0 +1,89 @@
+name: Pixiv
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 21 * * *'
+    
+jobs:
+  Pixiv-Main:
+    runs-on: ubuntu-latest
+    outputs:
+      gif-check: ${{ steps.gif-check.outputs.GIF_CONTROL }}
+
+    steps:                          
+    - name: checkout main
+      uses: actions/checkout@v2
+      with:
+        ref: main
+        fetch-depth: full
+               
+    - name: Prepare
+      run: |
+        pip install pycryptodome
+        sudo apt update
+        sudo apt install -y -qq aria2
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiemi --type rclone
+        
+    - name: Run
+      continue-on-error: true
+      run: |
+        python aria.py -uid ${{ secrets.UID }} -c ${{ secrets.COOKIE }} --tag 未分類
+        cd image
+        aria2c -c --input-file=urllist.txt
+        rm -rf urllist.txt
+    
+    - name: Gif find
+      continue-on-error: true
+      run: |
+        python gif.py -c ${{ secrets.COOKIE }}
+        eval $(cat GIF_CONTROL)
+        echo "GIF_CONTROL=$GIF_CONTROL" >> $GITHUB_OUTPUT
+      id: gif-check
+    
+    - name: GifZIP donwload
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'true' }}
+      run: |
+        cd image
+        aria2c -c --input-file=gifs.txt
+        rm -rf gifs.txt
+      
+    - name: Upload tmp Imgae
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ github.run_id }}
+        path: image
+        retention-days: 1
+    
+    - name: Upload
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'false' }}
+      run: |
+        sudo -v ; curl https://rclone.org/install.sh | sudo bash
+        bash rclone.sh -p "Upload/Pixiv/image"
+
+    - name: Clean
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'false' }}
+      run: |
+        rm -rf image
+        python C.py --public "${{ secrets.PUBLIC }}" --private "${{ secrets.PRIVATE }}" --mode jiami --type rclone
+
+    - name: Push
+      if:  ${{ steps.gif-check.outputs.GIF_CONTROL == 'false' }}
+      run: |
+        git init
+        git config user.name github-actions[bot]
+        git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+        git add rclone.conf
+        git commit -m "Daily update ${{ github.run_id }}"
+        #git checkout -- Upload/oa.json
+        git filter-branch --force --index-filter 'if [ "$GIT_COMMIT" != "$(git rev-parse HEAD)" ]; then git rm --cached --ignore-unmatch rclone.conf; fi' --prune-empty --tag-name-filter cat -- --all
+        git push origin --force --all
+  
+  Pixiv-GIF:
+    needs: Pixiv-Main
+    if:  ${{ needs.Pixiv-Main.outputs.gif-check == 'true' }}
+    uses: ./.github/workflows/Gif.yml
+    with:
+      upload-path: Upload/Pixiv/image
+      artifact-path: ${{ github.run_id }}
+    secrets: inherit

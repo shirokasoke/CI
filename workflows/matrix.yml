@@ -1,0 +1,33 @@
+name: Pixiv Matrix
+
+on:
+  workflow_call:
+    inputs:
+      issue:
+        required: true
+        type: string
+
+jobs:
+  process-issues:
+    runs-on: ubuntu-latest
+    outputs:
+      DOWNLOAD_UID: ${{ steps.setting.outputs.DOWNLOAD_UID }} 
+      UPLOAD_PATH: ${{ steps.setting.outputs.UPLOAD_PATH }} 
+    steps:
+    - name: setting
+      if: contains( fromJSON(inputs.issue).labels.*.name, 'Action' )
+      run: | #优先执行，防止恶意issue
+        ${{ fromJSON(inputs.issue).body }}
+        echo "DOWNLOAD_UID=$DOWNLOAD_UID" >> $GITHUB_OUTPUT
+        echo "UPLOAD_PATH=$UPLOAD_PATH" >> $GITHUB_OUTPUT
+      id: setting
+
+  Pixiv:
+    needs: process-issues
+    uses: ./.github/workflows/input.yml
+    with:
+      mode: '下载特定UID的作品'
+      uid: ${{ needs.process-issues.outputs.DOWNLOAD_UID }}
+      Upload: ${{ needs.process-issues.outputs.UPLOAD_PATH }} 
+      push: false
+    secrets: inherit

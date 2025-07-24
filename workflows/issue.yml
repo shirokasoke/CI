@@ -1,0 +1,34 @@
+name: Pixiv Issue Auto
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 */6 * *'
+  issues:
+    types:
+      - labeled
+
+jobs:
+  get-issues:
+    runs-on: ubuntu-latest
+    outputs:
+      issues: ${{ steps.get-issues.outputs.issues }}
+    steps:
+    - name: Get issues
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        issues=$(gh api "/repos/Rcrwrate/CI/issues?filter=all&state=open") 
+        echo "issues=$issues" >> $GITHUB_OUTPUT
+      id: get-issues
+
+  process-issues:
+    needs: get-issues
+    strategy:
+      fail-fast: false
+      matrix:
+        issue: ${{ fromJSON(needs.get-issues.outputs.issues) }}
+    uses: ./.github/workflows/matrix.yml
+    with:
+      issue: ${{ toJSON(matrix.issue) }}
+    secrets: inherit
