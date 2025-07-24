@@ -1,24 +1,24 @@
 # Personal CI库
 
-个人使用，说明书非常简略，有问题可以开issue问，**请勿选择Action标签**
+**请勿选择Action标签**
 
-目前已有2模块：BT下载、Pixiv
+目前已有2模块：BT、Pixiv
 
-## BT下载功能说明
+## BT说明
 
 目前已有功能如下：
 
-- [BT输入式下载](https://github.com/Rcrwrate/CI/blob/main/.github/workflows/BT.yml)
-- [BT RSS订阅下载，常规用于下载新番](https://github.com/Rcrwrate/CI/blob/main/.github/workflows/BtRSS.yml)
+- [BT输入式下载](https://github.com/shirokasoke/CI/blob/main/.github/workflows/BT.yml)
+- [BT RSS订阅下载，常规用于下载新番](https://github.com/shirokasoke/CI/blob/main/.github/workflows/BtRSS.yml)
 
 
 ## PIXIV相关功能说明
 
 目前已有功能如下：
 
-- [CI定时拉取个人收藏，上传](https://github.com/Rcrwrate/CI/blob/main/.github/workflows/Aria2.yml)
-- [CI根据带有Action label的issue中的数据定时拉取对应用户作品](https://github.com/Rcrwrate/CI/blob/main/.github/workflows/issue.yml)
-- [手动下载某收藏夹tag内容](https://github.com/Rcrwrate/CI/blob/main/.github/workflows/input.yml)
+- [CI定时拉取个人收藏，上传](https://github.com/shirokasoke/CI/blob/main/.github/workflows/Aria2.yml)
+- [CI根据带有Action label的issue中的数据定时拉取对应用户作品](https://github.com/shirokasoke/CI/blob/main/.github/workflows/issue.yml)
+- [手动下载某收藏夹tag内容](https://github.com/shirokasoke/CI/blob/main/.github/workflows/input.yml)
 
 #### 模块设计说明：
 
@@ -42,7 +42,7 @@
 
 3. 运行`python C_normal.py --mode create`，创建密钥对，(默认4096位)，请妥善保管
 
-https://github.com/Rcrwrate/CI/blob/main/CRY/CRY_RSA.py#LL103C24-L103C24
+https://github.com/shirokasoke/CI/blob/main/CRY/CRY_RSA.py#LL103C24-L103C24
 
 如要修改，请在如上位置修改
 
